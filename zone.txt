@@ -1,0 +1,115 @@
+ case 0:
+      j_start = 4; j_end = 10; i_start = 0; i_end = 14;
+
+    case 1:
+      j_start = 4; j_end = 10; i_start = 14; i_end = 27;
+      
+    case 2:
+
+      j_start = 4; j_end = 10; i_start = 27; i_end = 39;
+      
+    case 3:
+
+      j_start = 4; j_end = 10; i_start = 39; i_end = 53;
+      
+    case 4:
+    
+      j_start = 4; j_end = 10; i_start = 53; i_end = 66;
+      
+    case 5:
+
+      j_start = 4; j_end = 10; i_start = 66; i_end = 79;
+      
+    case 6:
+
+     j_start = 10; j_end = 16; i_start = 2; i_end = 16;
+     
+    case 7:
+
+     j_start = 10; j_end = 16; i_start = 16; i_end = 29;
+     
+    case 8:
+
+      j_start = 10; j_end = 16; i_start = 29; i_end = 42;
+      
+    case 9:
+      j_start = 10; j_end = 16; i_start = 42; i_end = 56;
+     
+    case 10:
+
+      j_start = 10; j_end = 16; i_start = 56; i_end = 69;
+     
+    case 11:
+
+      j_start = 10; j_end = 16; i_start = 69; i_end = 80;
+    case 12:
+
+      j_start = 16; j_end = 22; i_start = 0; i_end = 14;
+      
+    case 13:
+
+      j_start = 16; j_end = 22; i_start = 14; i_end = 27;
+      
+    case 14:
+
+      j_start = 16; j_end = 22; i_start = 27; i_end = 39;
+      
+    case 15:
+      j_start = 16; j_end = 22; i_start = 39; i_end = 53; 
+
+
+    case 16:
+
+      j_start = 16; j_end = 22; i_start = 53; i_end = 66;
+      
+
+    case 17:
+
+     j_start = 16; j_end = 22; i_start = 66; i_end = 79;
+      
+	case 18:
+      
+	j_start = 22; j_end = 28; i_start = 3; i_end = 16;
+      
+    case 19:
+
+      j_start = 22; j_end = 28; i_start = 16; i_end = 29;
+      
+    case 20:
+
+      j_start = 22; j_end = 28; i_start = 29; i_end = 42;
+      
+    case 21:
+
+      j_start = 22; j_end = 28; i_start = 42; i_end = 56;
+      
+    case 22:
+
+      j_start = 22; j_end = 28; i_start = 56; i_end = 69;
+     
+    case 23:
+
+      j_start = 22; j_end = 28; i_start = 69; i_end = 80;
+    case 24:
+
+      j_start = 28; j_end = 34; i_start = 1; i_end = 14;
+     
+    case 25:
+	 j_start = 28; j_end = 34; i_start = 14; i_end = 27;
+     
+    case 26:
+
+      j_start = 28; j_end = 34; i_start = 27; i_end = 39;
+      
+    case 27:
+
+      j_start = 28; j_end = 34; i_start = 39; i_end = 52;
+      
+    case 28:
+
+      j_start = 28; j_end = 34; i_start = 52; i_end = 65;
+      
+    case 29:
+
+      j_start = 28; j_end = 34; i_start = 65; i_end = 79;
+      

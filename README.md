@@ -1,0 +1,128 @@
+# Local Dimming Alignment Validator
+
+顯示器 Local Dimming（局部背光控制）LED 驅動驗證工具。
+
+## 專案說明
+
+本工具用於驗證 Local Dimming 控制器的 LED 點亮邏輯是否正確，透過比較：
+
+- **硬體 Dump**：從硬體讀出的實際 LED 亮度資料（`.txt` dump 檔）
+- **模擬結果**：以輸入影像經 Max-Pooling 運算所推算出的預期 LED 狀態
+
+工具會在 Block 層級與 Zone 層級分別進行比對，標記所有異常（漏亮 / 錯亮）並輸出彙總統計。
+
+---
+
+## 目錄結構
+
+```
+local dimming/
+├── local_dimming_align.py   # 主程式
+├── zone.txt                 # 30 個 LED Zone 的座標定義
+├── input/                   # 輸入灰階影像 (input_0.png ... input_N.png)
+├── dump/                    # 硬體 Dump txt 檔 (0.txt ... N.txt)
+├── LED/                     # LED 亮滅資料 (LED_0.txt ... LED_N.txt)
+├── compare/                 # 比對結果影像輸出
+├── sim_output/              # 模擬輸出影像 (sim_0.png ... sim_N.png)
+└── logs/                    # 執行日誌 (帶時間戳)
+```
+
+---
+
+## 輸入格式
+
+### 影像
+- 路徑：`input/input_{N}.png`
+- 規格：1280×640 灰階影像
+
+### Dump 檔（支援兩種格式）
+
+**新格式**（Tab 分隔）：
+```
+[0]	0	0x2000'8f1c	UCHAR
+[1]	128	0x2000'8f1d	UCHAR
+```
+
+**舊格式**（無分隔符）：
+```
+[168]1750x2000'8fc4UCHAR
+```
+
+> 每個 Dump 檔預期包含 3200 筆資料（40×80 Grid）。
+
+### Zone 定義（`zone.txt`）
+```
+case 0:
+  j_start = 4; j_end = 10; i_start = 0; i_end = 14;
+```
+- `j` 對應 row（垂直方向，範圍 0–39）
+- `i` 對應 column（水平方向，範圍 0–79）
+
+### LED 資料（`LED/LED_{N}.txt`）
+每行一筆，共 30 筆（對應 30 個 Zone 的 LED 亮滅值）。
+
+---
+
+## 核心邏輯
+
+| 步驟 | 說明 |
+|------|------|
+| Max-Pooling | 1280×640 影像 → 40×80 Grid（每格 16×16 像素取最大值）|
+| Block 比對 | 逐格比較 Dump 與模擬結果，統計差異數量 |
+| Zone 比對 | 依 Zone 座標計算最大亮度；與 LED 資料比對，判定漏亮 / 錯亮 |
+
+**漏亮（Missing Light）**：模擬應亮，硬體未亮  
+**錯亮（Incorrect Light）**：模擬應滅，硬體誤亮
+
+---
+
+## 執行方式
+
+```bash
+python local_dimming_align.py
+```
+
+互動式輸入 test case 目錄路徑與數量，工具自動處理全部 case 並輸出彙總報告。
+
+### 輸出範例
+
+```
+========== 彙總統計 ==========
+成功處理 case 數: 28 / 30
+總 Block 誤差: 1579
+總 Zone 錯誤: 115
+
+--- Zone 錯誤分佈 ---
+Zone ID  | 漏亮  | 錯亮  | 合計
+---------|-------|-------|------
+Zone 0   |   0   |  28   |   28
+Zone 1   |   0   |  28   |   28
+...
+
+--- Top-5 Block 誤差最高 Case ---
+Case 5   : 87 block diffs
+...
+```
+
+---
+
+## 環境需求
+
+```
+Python >= 3.8
+opencv-python
+numpy
+```
+
+安裝：
+```bash
+pip install opencv-python numpy
+```
+
+---
+
+## 注意事項
+
+- 輸入影像不會被覆寫；模擬結果另存至 `sim_output/`
+- 日誌檔以 UTC+8 時間戳命名，保存於 `logs/`
+- Dump 檔若少於 3200 筆，工具會警告但繼續處理
