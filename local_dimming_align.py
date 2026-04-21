@@ -6,6 +6,7 @@ import argparse
 import logging
 from datetime import datetime
 
+# 自動安裝缺少的第三方套件
 try:
     import cv2
     import numpy as np
@@ -14,6 +15,7 @@ except ImportError:
     import cv2
     import numpy as np
 
+# 影像解析度轉換後的網格大小：1280x640 px → 80x40 格（每格 16x16 px）
 GRID_H, GRID_W = 40, 80
 BLOCK_H, BLOCK_W = 16, 16
 
@@ -28,10 +30,12 @@ def setup_logging(log_dir):
 
     fmt = logging.Formatter("%(asctime)s [%(levelname)s] %(message)s", datefmt="%H:%M:%S")
 
+    # 日誌檔記錄 DEBUG 以上所有層級
     fh = logging.FileHandler(log_file, encoding="utf-8")
     fh.setLevel(logging.DEBUG)
     fh.setFormatter(fmt)
 
+    # 終端機只顯示 INFO 以上
     ch = logging.StreamHandler(sys.stdout)
     ch.setLevel(logging.INFO)
     ch.setFormatter(fmt)
@@ -53,6 +57,7 @@ def process_local_dimming(img):
         for x in range(0, w, BLOCK_W):
             block = img[y:y + BLOCK_H, x:x + BLOCK_W]
             max_val = np.max(block)
+            # 只寫入非零格，零值保持預設
             if max_val > 0:
                 sim_data[y // BLOCK_H, x // BLOCK_W] = int(max_val)
     return sim_data
@@ -67,6 +72,7 @@ def parse_dump(file_path, logger):
     entries_found = 0
     with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
         for line in f:
+            # 匹配格式：[idx]  value（Tab 或空白分隔）
             match = re.search(r'\[(\d+)\]\s+(\d+)', line)
             if match:
                 idx = int(match.group(1))
@@ -83,6 +89,7 @@ def parse_dump(file_path, logger):
     if entries_found != 3200:
         logger.warning(f"  Dump 預期 3200 筆，實際讀取 {entries_found} 筆：{file_path}")
 
+    # 將一維陣列重塑為 (GRID_H, GRID_W) 二維網格
     return dump_data.reshape((GRID_H, GRID_W))
 
 
@@ -100,6 +107,7 @@ def parse_zones(file_path, logger):
     current_case = -1
     with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
         for line in f:
+            # 先抓 case 編號，再抓同行或下一行的座標參數
             case_match = re.search(r'case\s+(\d+):', line)
             if case_match:
                 current_case = int(case_match.group(1))
@@ -141,6 +149,7 @@ def parse_led_dump(file_path, num_cases, logger):
     entries_found = 0
     with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
         for line in f:
+            # 格式與 dump 相同：[zone_idx]  value
             match = re.search(r'\[(\d+)\]\s+(\d+)', line)
             if match:
                 idx = int(match.group(1))
@@ -177,15 +186,16 @@ def visualize_diff(dump_arr, sim_arr, result_path, logger):
             d_val = dump_arr[y, x]
             s_val = sim_arr[y, x]
             if d_val > 0 and s_val > 0:
-                vis_img[y, x] = (255, 255, 255)
+                vis_img[y, x] = (255, 255, 255)   # 白：兩者皆亮
             elif d_val > 0 and s_val == 0:
-                vis_img[y, x] = (0, 0, 255)   # 紅：僅 Dump 有
+                vis_img[y, x] = (0, 0, 255)        # 紅：僅 Dump 有
                 diff_count += 1
             elif d_val == 0 and s_val > 0:
-                vis_img[y, x] = (255, 0, 0)   # 藍：僅模擬有
+                vis_img[y, x] = (255, 0, 0)        # 藍：僅模擬有
                 diff_count += 1
-            # 否則保持黑色（預設值）
+            # 兩者皆零 → 保持黑色（預設值）
 
+    # 放大回 1280x640 以便人眼查看
     vis_img_large = cv2.resize(vis_img, (1280, 640), interpolation=cv2.INTER_NEAREST)
     os.makedirs(os.path.dirname(result_path), exist_ok=True)
     cv2.imwrite(result_path, vis_img_large)
@@ -208,8 +218,11 @@ def evaluate_zones(sim_data, zones, led_data, case_idx_prefix, logger):
     for case_id in sorted(zones.keys()):
         j_s, j_e, i_s, i_e = zones[case_id]
 
+        # 從模擬 Grid 裁出此 Zone 區域，判斷模擬是否預期該亮
         zone_block = sim_data[max(0, j_s):min(GRID_H, j_e), max(0, i_s):min(GRID_W, i_e)]
         expected_on = bool(np.any(zone_block > 0))
+
+        # 從 LED dump 讀取硬體實際亮滅狀態
         actual_on = bool(led_data[case_id] > 0)
 
         if expected_on:
@@ -217,12 +230,15 @@ def evaluate_zones(sim_data, zones, led_data, case_idx_prefix, logger):
         if actual_on:
             actual_on_list.append(case_id)
 
+        # 判定錯誤類型
         error_type = None
         if expected_on and not actual_on:
+            # 模擬說該亮，硬體沒亮 → 漏亮
             status_msg = "[ERROR] [漏亮] 模擬圖判定該亮，但實際未亮"
             error_type = "漏亮"
             errors += 1
         elif not expected_on and actual_on:
+            # 模擬說不該亮，硬體卻亮了 → 錯亮
             status_msg = "[ERROR] [錯亮] 模擬圖判定不該亮，但實際亮了"
             error_type = "錯亮"
             errors += 1
@@ -238,6 +254,7 @@ def evaluate_zones(sim_data, zones, led_data, case_idx_prefix, logger):
             "error_type": error_type,
         })
 
+        # 只記錄有訊號或有錯誤的 Zone，全熄滅且無誤的靜默略過
         if expected_on or actual_on or error_type:
             exp_str = "ON " if expected_on else "OFF"
             act_str = "ON " if actual_on else "OFF"
@@ -261,6 +278,7 @@ def process_single_pair(directory, x, logger):
     zone_path = os.path.join(directory, "zone.txt")
     led_path  = os.path.join(directory, "LED", f"{x}.txt")
 
+    # 必要檔案缺失時提早返回
     if not os.path.exists(txt_path):
         logger.warning(f"[{x}] 找不到 Dump 檔: {txt_path}")
         return False, 0, 0, []
@@ -276,9 +294,10 @@ def process_single_pair(directory, x, logger):
         logger.error(f"[{x}] 影像讀取失敗: {img_path}")
         return False, 0, 0, []
 
+    # Step 1：影像 → Max-Pooling Grid（模擬預期亮區）
     sim_data = process_local_dimming(img)
 
-    # 將模擬輸出存至 sim_output/，絕不覆寫原始輸入影像
+    # Step 2：將模擬結果視覺化存檔（不覆寫原始輸入影像）
     sim_out_dir = os.path.join(directory, "sim_output")
     os.makedirs(sim_out_dir, exist_ok=True)
     sim_out_img = np.zeros_like(img)
@@ -290,7 +309,7 @@ def process_single_pair(directory, x, logger):
     cv2.imwrite(sim_out_path, sim_out_img)
     logger.debug(f"[{x}] 模擬輸出已存至：sim_output/sim_{x}.png")
 
-    # Block 級差異比對
+    # Step 3：Block 級差異比對（模擬 vs 硬體 Dump）
     dump_data = parse_dump(txt_path, logger)
     if dump_data is None:
         return False, 0, 0, []
@@ -299,7 +318,7 @@ def process_single_pair(directory, x, logger):
     diffs = visualize_diff(dump_data, sim_data, diff_path, logger)
     logger.info(f"[{x}] Block 級比對完成 — 誤差區塊: {diffs} -> compare/diff_{x}.png")
 
-    # 燈區評估
+    # Step 4：Zone 級漏亮 / 錯亮評估
     zones = parse_zones(zone_path, logger)
     zone_errors = 0
     per_zone_results = []
@@ -320,7 +339,19 @@ def print_aggregate_summary(results, logger):
     列印所有測試組的彙整統計報告。
     results：{case_x, success, block_diffs, zone_errors, per_zone_results} 字典的清單。
     """
-    # 各測試組彙整：統計每組內的漏亮/錯亮次數
+    logger.info("\n\n========== 批次彙整報告 (Aggregate Summary) ==========")
+
+    total = len(results)
+    success_count = sum(1 for r in results if r["success"])
+    total_block_diffs = sum(r["block_diffs"] for r in results)
+    total_zone_errors = sum(r["zone_errors"] for r in results)
+
+    logger.info(f"處理組數  : {success_count} / {total} 成功")
+    logger.info(f"Block誤差總計: {total_block_diffs} 個區塊")
+    logger.info(f"Zone 錯誤總計: {total_zone_errors} 個燈區異常")
+
+    # 各測試組彙整：統計每組內的漏亮 / 錯亮次數
+    # 以測試組編號為索引，對應該組 Zone 報告中所有錯誤的加總
     group_error_counts: dict[int, dict] = {}
     for r in results:
         cx = r["case_x"]
@@ -339,7 +370,7 @@ def print_aggregate_summary(results, logger):
     else:
         logger.info("\n全部測試組均無燈區錯誤！")
 
-    # Block 誤差最多的前五組
+    # Top-5：Block 誤差最多的組別
     worst_block = sorted(results, key=lambda r: r["block_diffs"], reverse=True)[:5]
     logger.info("\nTop-5 Block 誤差最多的組別：")
     for r in worst_block:
@@ -365,9 +396,10 @@ def main():
 
     os.makedirs(os.path.join(directory, "compare"), exist_ok=True)
 
+    # 若未透過 -c 傳入組數，進入互動式輸入迴圈
     num_images = args.count
     while num_images is None:
-        try:                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              
+        try:
             user_input = input("請輸入您有幾組圖/Dump資料 (例如輸入 5，將處理 0~4): ")
             num_images = int(user_input.strip())
             if num_images <= 0:
@@ -378,6 +410,7 @@ def main():
 
     logger.info(f"\n即將處理 {num_images} 組檔案...")
 
+    # 逐組處理並收集結果
     all_results = []
     for x in range(num_images):
         success, block_diffs, zone_errors, per_zone_results = process_single_pair(directory, x, logger)
