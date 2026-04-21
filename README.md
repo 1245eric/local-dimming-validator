@@ -131,6 +131,20 @@ pip install opencv-python numpy
 
 ## 版本紀錄 (Changelog)
 
+### v1.3.0 — 2026-04-21 (commit `5bb3d7a`)
+**更新 Zone 定義**
+
+- 修改 `zone.txt` 中 30 個 LED Zone 的座標定義
+
+---
+
+### v1.2.0 — 2026-04-21 (commit `53ef9b7`)
+**新增程式碼內嵌中文註解**
+
+- 為 `local_dimming_align.py` 所有主要函式加上中文說明註解，提升可讀性
+
+---
+
 ### v1.1.0 — 2026-04-21 (commit `3ea8b14`)
 **彙整報告改為以測試組（Test Group）為單位統計**
 
