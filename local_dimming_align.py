@@ -320,38 +320,24 @@ def print_aggregate_summary(results, logger):
     列印所有測試組的彙整統計報告。
     results：{case_x, success, block_diffs, zone_errors, per_zone_results} 字典的清單。
     """
-    logger.info("\n\n========== 批次彙整報告 (Aggregate Summary) ==========")
-
-    total = len(results)
-    success_count = sum(1 for r in results if r["success"])
-    total_block_diffs = sum(r["block_diffs"] for r in results)
-    total_zone_errors = sum(r["zone_errors"] for r in results)
-
-    logger.info(f"處理組數  : {success_count} / {total} 成功")
-    logger.info(f"Block誤差總計: {total_block_diffs} 個區塊")
-    logger.info(f"Zone 錯誤總計: {total_zone_errors} 個燈區異常")
-
-    # 各燈區彙整：計算每個燈區在所有測試組中的錯誤次數
-    zone_error_counts: dict[int, dict] = {}
+    # 各測試組彙整：統計每組內的漏亮/錯亮次數
+    group_error_counts: dict[int, dict] = {}
     for r in results:
-        for zr in r["per_zone_results"]:
-            zid = zr["zone_id"]
-            if zid not in zone_error_counts:
-                zone_error_counts[zid] = {"漏亮": 0, "錯亮": 0, "total": 0}
-            if zr["error_type"]:
-                zone_error_counts[zid][zr["error_type"]] += 1
-                zone_error_counts[zid]["total"] += 1
+        cx = r["case_x"]
+        lou = sum(1 for zr in r["per_zone_results"] if zr["error_type"] == "漏亮")
+        cuo = sum(1 for zr in r["per_zone_results"] if zr["error_type"] == "錯亮")
+        group_error_counts[cx] = {"漏亮": lou, "錯亮": cuo, "total": lou + cuo}
 
-    problematic = {z: c for z, c in zone_error_counts.items() if c["total"] > 0}
+    problematic = {g: c for g, c in group_error_counts.items() if c["total"] > 0}
     if problematic:
-        logger.info("\n各燈區累積錯誤次數（跨所有測試組）：")
-        logger.info(f"  {'Zone':>5}  {'漏亮':>6}  {'錯亮':>6}  {'Total':>6}")
-        logger.info("  " + "-" * 32)
-        for zid in sorted(problematic):
-            c = problematic[zid]
-            logger.info(f"  {zid:>5}  {c['漏亮']:>6}  {c['錯亮']:>6}  {c['total']:>6}")
+        logger.info("\n各測試組燈區錯誤次數：")
+        logger.info(f"  {'zone':>6}  {'漏亮':>6}  {'錯亮':>6}  {'Total':>6}")
+        logger.info("  " + "-" * 34)
+        for gid in sorted(group_error_counts):
+            c = group_error_counts[gid]
+            logger.info(f"  {gid:>6}  {c['漏亮']:>6}  {c['錯亮']:>6}  {c['total']:>6}")
     else:
-        logger.info("\n全部燈區均無錯誤！")
+        logger.info("\n全部測試組均無燈區錯誤！")
 
     # Block 誤差最多的前五組
     worst_block = sorted(results, key=lambda r: r["block_diffs"], reverse=True)[:5]
@@ -381,7 +367,7 @@ def main():
 
     num_images = args.count
     while num_images is None:
-        try:
+        try:                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              
             user_input = input("請輸入您有幾組圖/Dump資料 (例如輸入 5，將處理 0~4): ")
             num_images = int(user_input.strip())
             if num_images <= 0:
