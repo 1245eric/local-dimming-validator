@@ -51,16 +51,8 @@ def process_local_dimming(img):
     將 1280x640 灰階影像轉換為 40x80 的 Max-Pooling 網格。
     每個格子儲存對應 16x16 區塊內的最大像素值。
     """
-    h, w = img.shape
-    sim_data = np.zeros((GRID_H, GRID_W), dtype=np.int32)
-    for y in range(0, h, BLOCK_H):
-        for x in range(0, w, BLOCK_W):
-            block = img[y:y + BLOCK_H, x:x + BLOCK_W]
-            max_val = np.max(block)
-            # 只寫入非零格，零值保持預設
-            if max_val > 0:
-                sim_data[y // BLOCK_H, x // BLOCK_W] = int(max_val)
-    return sim_data
+    tiles = img[:GRID_H * BLOCK_H, :GRID_W * BLOCK_W].reshape(GRID_H, BLOCK_H, GRID_W, BLOCK_W)
+    return tiles.max(axis=(1, 3)).astype(np.int32)
 
 
 def parse_dump(file_path, logger):
@@ -68,26 +60,30 @@ def parse_dump(file_path, logger):
     解析含有 3200 筆索引資料的硬體 Dump txt 檔。
     成功時回傳 (40, 80) int32 陣列，失敗時回傳 None。
     """
-    dump_data = np.zeros(3200, dtype=np.int32)
+    total = GRID_H * GRID_W
+    dump_data = np.zeros(total, dtype=np.int32)
     entries_found = 0
     with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
         for line in f:
-            # 匹配格式：[idx]  value（Tab 或空白分隔）
+            # 新格式：[idx]  value（Tab 或空白分隔）
             match = re.search(r'\[(\d+)\]\s+(\d+)', line)
+            # 舊格式：[idx]value0x...（無分隔符）
+            if not match:
+                match = re.search(r'\[(\d+)\](\d+)0x', line)
             if match:
                 idx = int(match.group(1))
                 val = int(match.group(2))
-                if 0 <= idx < 3200:
+                if 0 <= idx < total:
                     dump_data[idx] = val
                     entries_found += 1
                 else:
-                    logger.warning(f"  Dump 索引 {idx} 超出範圍 [0, 3200)：{file_path}")
+                    logger.warning(f"  Dump 索引 {idx} 超出範圍 [0, {total})：{file_path}")
 
     if entries_found == 0:
         logger.error(f"  Dump 檔中找不到有效資料：{file_path}")
         return None
-    if entries_found != 3200:
-        logger.warning(f"  Dump 預期 3200 筆，實際讀取 {entries_found} 筆：{file_path}")
+    if entries_found != total:
+        logger.warning(f"  Dump 預期 {total} 筆，實際讀取 {entries_found} 筆：{file_path}")
 
     # 將一維陣列重塑為 (GRID_H, GRID_W) 二維網格
     return dump_data.reshape((GRID_H, GRID_W))
@@ -137,37 +133,6 @@ def parse_zones(file_path, logger):
     return zones
 
 
-def parse_led_dump(file_path, num_cases, logger):
-    """
-    解析 LED 控制 txt 檔，回傳長度為 num_cases 的 int32 陣列，失敗時回傳 None。
-    """
-    led_data = np.zeros(num_cases, dtype=np.int32)
-    if not os.path.exists(file_path):
-        logger.warning(f"  找不到 LED 檔案：{file_path}")
-        return None
-
-    entries_found = 0
-    with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-        for line in f:
-            # 格式與 dump 相同：[zone_idx]  value
-            match = re.search(r'\[(\d+)\]\s+(\d+)', line)
-            if match:
-                idx = int(match.group(1))
-                val = int(match.group(2))
-                if 0 <= idx < num_cases:
-                    led_data[idx] = val
-                    entries_found += 1
-                else:
-                    logger.warning(f"  LED 索引 {idx} 超出範圍 [0, {num_cases})：{file_path}")
-
-    if entries_found == 0:
-        logger.error(f"  LED 檔中找不到有效資料：{file_path}")
-        return None
-    if entries_found != num_cases:
-        logger.warning(f"  LED 預期 {num_cases} 筆，實際讀取 {entries_found} 筆：{file_path}")
-
-    return led_data
-
 
 def visualize_diff(dump_arr, sim_arr, result_path, logger):
     """
@@ -179,21 +144,16 @@ def visualize_diff(dump_arr, sim_arr, result_path, logger):
     回傳不一致的區塊數量。
     """
     vis_img = np.zeros((GRID_H, GRID_W, 3), dtype=np.uint8)
-    diff_count = 0
 
-    for y in range(GRID_H):
-        for x in range(GRID_W):
-            d_val = dump_arr[y, x]
-            s_val = sim_arr[y, x]
-            if d_val > 0 and s_val > 0:
-                vis_img[y, x] = (255, 255, 255)   # 白：兩者皆亮
-            elif d_val == 0 and s_val > 0:
-                vis_img[y, x] = (0, 0, 255)        # 紅：漏亮（模擬有、Dump 沒）
-                diff_count += 1
-            elif d_val > 0 and s_val == 0:
-                vis_img[y, x] = (255, 0, 0)        # 藍：多亮（模擬沒、Dump 有）
-                diff_count += 1
-            # 兩者皆零 → 保持黑色（預設值）
+    both_on = (dump_arr > 0) & (sim_arr > 0)
+    missing  = (dump_arr == 0) & (sim_arr > 0)   # 漏亮
+    extra    = (dump_arr > 0) & (sim_arr == 0)   # 多亮
+
+    vis_img[both_on] = (255, 255, 255)   # 白：兩者皆亮
+    vis_img[missing] = (0, 0, 255)       # 紅：漏亮（模擬有、Dump 沒）
+    vis_img[extra]   = (255, 0, 0)       # 藍：多亮（模擬沒、Dump 有）
+
+    diff_count = int(np.sum(missing) + np.sum(extra))
 
     # 放大回 1280x640 以便人眼查看
     vis_img_large = cv2.resize(vis_img, (1280, 640), interpolation=cv2.INTER_NEAREST)
@@ -293,17 +253,18 @@ def process_single_pair(directory, x, logger):
         logger.error(f"[{x}] 影像讀取失敗: {img_path}")
         return False, 0, 0, []
 
+    expected_shape = (GRID_H * BLOCK_H, GRID_W * BLOCK_W)
+    if img.shape != expected_shape:
+        logger.error(f"[{x}] 影像尺寸 {img.shape} 不符預期 {expected_shape}，跳過此組")
+        return False, 0, 0, []
+
     # Step 1：影像 → Max-Pooling Grid（模擬預期亮區）
     sim_data = process_local_dimming(img)
 
     # Step 2：將模擬結果視覺化存檔（不覆寫原始輸入影像）
     sim_out_dir = os.path.join(directory, "sim_output")
     os.makedirs(sim_out_dir, exist_ok=True)
-    sim_out_img = np.zeros_like(img)
-    for y in range(GRID_H):
-        for x_block in range(GRID_W):
-            if sim_data[y, x_block] > 0:
-                sim_out_img[y * BLOCK_H:(y + 1) * BLOCK_H, x_block * BLOCK_W:(x_block + 1) * BLOCK_W] = 255
+    sim_out_img = ((sim_data > 0).repeat(BLOCK_H, axis=0).repeat(BLOCK_W, axis=1) * 255).astype(np.uint8)
     sim_out_path = os.path.join(sim_out_dir, f"sim_{x}.png")
     cv2.imwrite(sim_out_path, sim_out_img)
     logger.debug(f"[{x}] 模擬輸出已存至：sim_output/sim_{x}.png")
@@ -356,11 +317,11 @@ def print_aggregate_summary(results, logger):
 
     problematic = {g: c for g, c in group_error_counts.items() if c["total"] > 0}
     if problematic:
-        logger.info("\n各測試組燈區錯誤次數：")
+        logger.info("\n各測試組燈區錯誤次數（僅列有異常組）：")
         logger.info(f"  {'zone':>6}  {'漏亮':>6}  {'多亮':>6}  {'Total':>6}")
         logger.info("  " + "-" * 34)
-        for gid in sorted(group_error_counts):
-            c = group_error_counts[gid]
+        for gid in sorted(problematic):
+            c = problematic[gid]
             logger.info(f"  {gid:>6}  {c['漏亮']:>6}  {c['多亮']:>6}  {c['total']:>6}")
     else:
         logger.info("\n全部測試組均無燈區錯誤！")
