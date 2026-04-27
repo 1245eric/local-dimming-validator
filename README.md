@@ -21,7 +21,7 @@ local dimming/
 ├── zone.txt                 # 30 個 LED Zone 的座標定義
 ├── input/                   # 輸入灰階影像 (input_0.png ... input_N.png)
 ├── dump/                    # 硬體 Dump txt 檔 (0.txt ... N.txt)
-├── LED/                     # LED 亮滅資料 (LED_0.txt ... LED_N.txt)
+├── LED/                     # LED 亮滅資料 (0.log ... N.log)
 ├── compare/                 # 比對結果影像輸出
 ├── sim_output/              # 模擬輸出影像 (sim_0.png ... sim_N.png)
 └── logs/                    # 執行日誌 (帶時間戳)
@@ -58,7 +58,7 @@ case 0:
 - `j` 對應 row（垂直方向，範圍 0–39）
 - `i` 對應 column（水平方向，範圍 0–79）
 
-### LED 資料（`LED/LED_{N}.txt`）
+### LED 資料（`LED/{N}.log`）
 每行一筆，共 30 筆（對應 30 個 Zone 的 LED 亮滅值）。
 
 ---
@@ -138,7 +138,7 @@ pip install opencv-python numpy
 - 修正燈區比對邏輯：`evaluate_zones` 改以 `ucDet_APL_Rot`（dump）為硬體實際依據，不再使用 LED log（`ucDet_APL`）
 - 修正 compare 圖顏色定義：紅色 = 漏亮（模擬有、dump 沒），藍色 = 多亮（模擬沒、dump 有）
 - LED 資料副檔名由 `.txt` 改為 `.log`
-- 術語「多亮」統一更名為「多亮」
+- 術語「錯亮」統一更名為「多亮」
 
 ---
 
