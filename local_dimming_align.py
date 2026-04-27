@@ -171,10 +171,10 @@ def parse_led_dump(file_path, num_cases, logger):
 
 def visualize_diff(dump_arr, sim_arr, result_path, logger):
     """
-    產生 1280x640 色彩差異比對圖，比較 Dump 與模擬結果：
+    產生 1280x640 色彩差異比對圖，以模擬為準與 Dump 比對：
       白色 = 兩者皆有訊號（正確）
-      紅色 = 僅 Dump 有訊號（模擬漏判）
-      藍色 = 僅模擬有訊號（模擬多判）
+      紅色 = 漏亮：模擬有亮，Dump 沒亮
+      藍色 = 多亮：模擬沒亮，Dump 有亮
       黑色 = 兩者皆無訊號（正確）
     回傳不一致的區塊數量。
     """
@@ -187,11 +187,11 @@ def visualize_diff(dump_arr, sim_arr, result_path, logger):
             s_val = sim_arr[y, x]
             if d_val > 0 and s_val > 0:
                 vis_img[y, x] = (255, 255, 255)   # 白：兩者皆亮
-            elif d_val > 0 and s_val == 0:
-                vis_img[y, x] = (0, 0, 255)        # 紅：僅 Dump 有
-                diff_count += 1
             elif d_val == 0 and s_val > 0:
-                vis_img[y, x] = (255, 0, 0)        # 藍：僅模擬有
+                vis_img[y, x] = (0, 0, 255)        # 紅：漏亮（模擬有、Dump 沒）
+                diff_count += 1
+            elif d_val > 0 and s_val == 0:
+                vis_img[y, x] = (255, 0, 0)        # 藍：多亮（模擬沒、Dump 有）
                 diff_count += 1
             # 兩者皆零 → 保持黑色（預設值）
 
@@ -203,11 +203,11 @@ def visualize_diff(dump_arr, sim_arr, result_path, logger):
     return diff_count
 
 
-def evaluate_zones(sim_data, zones, led_data, case_idx_prefix, logger):
+def evaluate_zones(sim_data, dump_data, zones, case_idx_prefix, logger):
     """
-    比較模擬圖預期點亮狀態（sim_data）與實際 LED 狀態（led_data）。
-    回傳 (errors, per_zone_results)，其中 per_zone_results 為
-    {zone_id, expected_on, actual_on, error_type} 字典的清單，供彙整報告使用。
+    以模擬為準，比對 dump（ucDet_APL_Rot）各燈區的實際點亮狀態。
+    actual_on：zone 邊界內 dump 有任一非零 block 即視為點亮。
+    回傳 (errors, per_zone_results)。
     """
     logger.info(f"\n[{case_idx_prefix}] --- 燈區 (Zone) 點亮比對報告 ---")
     expected_on_list = []
@@ -217,33 +217,33 @@ def evaluate_zones(sim_data, zones, led_data, case_idx_prefix, logger):
 
     for case_id in sorted(zones.keys()):
         j_s, j_e, i_s, i_e = zones[case_id]
+        j_s_c, j_e_c = max(0, j_s), min(GRID_H, j_e)
+        i_s_c, i_e_c = max(0, i_s), min(GRID_W, i_e)
 
-        # 從模擬 Grid 裁出此 Zone 區域，判斷模擬是否預期該亮
-        zone_block = sim_data[max(0, j_s):min(GRID_H, j_e), max(0, i_s):min(GRID_W, i_e)]
-        expected_on = bool(np.any(zone_block > 0))
+        # 模擬預期：zone 範圍內 sim 有任一亮 block
+        sim_zone  = sim_data [j_s_c:j_e_c, i_s_c:i_e_c]
+        expected_on = bool(np.any(sim_zone > 0))
 
-        # 從 LED dump 讀取硬體實際亮滅狀態
-        actual_on = bool(led_data[case_id] > 0)
+        # 硬體實際：zone 範圍內 ucDet_APL_Rot (dump) 有任一非零 block
+        dump_zone = dump_data[j_s_c:j_e_c, i_s_c:i_e_c]
+        actual_on = bool(np.any(dump_zone > 0))
 
         if expected_on:
             expected_on_list.append(case_id)
         if actual_on:
             actual_on_list.append(case_id)
 
-        # 判定錯誤類型
         error_type = None
         if expected_on and not actual_on:
-            # 模擬說該亮，硬體沒亮 → 漏亮
-            status_msg = "[ERROR] [漏亮] 模擬圖判定該亮，但實際未亮"
+            status_msg = "[ERROR] [漏亮] 模擬判定該亮，但 dump 無訊號"
             error_type = "漏亮"
             errors += 1
         elif not expected_on and actual_on:
-            # 模擬說不該亮，硬體卻亮了 → 錯亮
-            status_msg = "[ERROR] [錯亮] 模擬圖判定不該亮，但實際亮了"
-            error_type = "錯亮"
+            status_msg = "[ERROR] [多亮] 模擬判定不該亮，但 dump 有訊號"
+            error_type = "多亮"
             errors += 1
         elif expected_on and actual_on:
-            status_msg = f"[OK] 正常點亮 (Val: {led_data[case_id]})"
+            status_msg = "[OK] 正常點亮"
         else:
             status_msg = "[OK] 正常熄滅"
 
@@ -254,7 +254,6 @@ def evaluate_zones(sim_data, zones, led_data, case_idx_prefix, logger):
             "error_type": error_type,
         })
 
-        # 只記錄有訊號或有錯誤的 Zone，全熄滅且無誤的靜默略過
         if expected_on or actual_on or error_type:
             exp_str = "ON " if expected_on else "OFF"
             act_str = "ON " if actual_on else "OFF"
@@ -276,7 +275,7 @@ def process_single_pair(directory, x, logger):
     txt_path  = os.path.join(directory, "dump", f"{x}.txt")
     img_path  = os.path.join(directory, "input", f"input_{x}.png")
     zone_path = os.path.join(directory, "zone.txt")
-    led_path  = os.path.join(directory, "LED", f"{x}.txt")
+
 
     # 必要檔案缺失時提早返回
     if not os.path.exists(txt_path):
@@ -318,18 +317,14 @@ def process_single_pair(directory, x, logger):
     diffs = visualize_diff(dump_data, sim_data, diff_path, logger)
     logger.info(f"[{x}] Block 級比對完成 — 誤差區塊: {diffs} -> compare/diff_{x}.png")
 
-    # Step 4：Zone 級漏亮 / 錯亮評估
+    # Step 4：Zone 級漏亮 / 多亮評估（以 dump 為硬體實際依據）
     zones = parse_zones(zone_path, logger)
     zone_errors = 0
     per_zone_results = []
-    if zones and os.path.exists(led_path):
-        led_data = parse_led_dump(led_path, num_cases=len(zones), logger=logger)
-        if led_data is not None:
-            zone_errors, per_zone_results = evaluate_zones(sim_data, zones, led_data, x, logger)
-        else:
-            logger.error(f"[{x}] LED Dump 讀取失敗。")
+    if zones:
+        zone_errors, per_zone_results = evaluate_zones(sim_data, dump_data, zones, x, logger)
     else:
-        logger.warning(f"[{x}] 找不到 zone.txt 或 LED 檔案 (跳過燈區比對)")
+        logger.warning(f"[{x}] 找不到 zone.txt，跳過燈區比對")
 
     return True, diffs, zone_errors, per_zone_results
 
@@ -350,23 +345,23 @@ def print_aggregate_summary(results, logger):
     logger.info(f"Block誤差總計: {total_block_diffs} 個區塊")
     logger.info(f"Zone 錯誤總計: {total_zone_errors} 個燈區異常")
 
-    # 各測試組彙整：統計每組內的漏亮 / 錯亮次數
+    # 各測試組彙整：統計每組內的漏亮 / 多亮次數
     # 以測試組編號為索引，對應該組 Zone 報告中所有錯誤的加總
     group_error_counts: dict[int, dict] = {}
     for r in results:
         cx = r["case_x"]
         lou = sum(1 for zr in r["per_zone_results"] if zr["error_type"] == "漏亮")
-        cuo = sum(1 for zr in r["per_zone_results"] if zr["error_type"] == "錯亮")
-        group_error_counts[cx] = {"漏亮": lou, "錯亮": cuo, "total": lou + cuo}
+        cuo = sum(1 for zr in r["per_zone_results"] if zr["error_type"] == "多亮")
+        group_error_counts[cx] = {"漏亮": lou, "多亮": cuo, "total": lou + cuo}
 
     problematic = {g: c for g, c in group_error_counts.items() if c["total"] > 0}
     if problematic:
         logger.info("\n各測試組燈區錯誤次數：")
-        logger.info(f"  {'zone':>6}  {'漏亮':>6}  {'錯亮':>6}  {'Total':>6}")
+        logger.info(f"  {'zone':>6}  {'漏亮':>6}  {'多亮':>6}  {'Total':>6}")
         logger.info("  " + "-" * 34)
         for gid in sorted(group_error_counts):
             c = group_error_counts[gid]
-            logger.info(f"  {gid:>6}  {c['漏亮']:>6}  {c['錯亮']:>6}  {c['total']:>6}")
+            logger.info(f"  {gid:>6}  {c['漏亮']:>6}  {c['多亮']:>6}  {c['total']:>6}")
     else:
         logger.info("\n全部測試組均無燈區錯誤！")
 
@@ -375,7 +370,7 @@ def print_aggregate_summary(results, logger):
     logger.info("\nTop-5 Block 誤差最多的組別：")
     for r in worst_block:
         if r["success"]:
-            logger.info(f"  Case {r['case_x']:3d}: {r['block_diffs']} 誤差區塊, {r['zone_errors']} Zone 錯誤")
+            logger.info(f"  Case {r['case_x']:3d}: {r['block_diffs']} 誤差區塊, {r['zone_errors']} Zone 異常")
 
     logger.info("======================================================\n")
 

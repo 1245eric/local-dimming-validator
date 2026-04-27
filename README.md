@@ -131,6 +131,17 @@ pip install opencv-python numpy
 
 ## 版本紀錄 (Changelog)
 
+### v1.4.0 — 2026-04-27
+
+**比對邏輯重構與術語調整**
+
+- 修正燈區比對邏輯：`evaluate_zones` 改以 `ucDet_APL_Rot`（dump）為硬體實際依據，不再使用 LED log（`ucDet_APL`）
+- 修正 compare 圖顏色定義：紅色 = 漏亮（模擬有、dump 沒），藍色 = 多亮（模擬沒、dump 有）
+- LED 資料副檔名由 `.txt` 改為 `.log`
+- 術語「錯亮」統一更名為「多亮」
+
+---
+
 ### v1.3.0 — 2026-04-21 (commit `5bb3d7a`)
 **更新 Zone 定義**
 
