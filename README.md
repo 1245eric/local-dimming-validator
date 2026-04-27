@@ -9,7 +9,7 @@
 - **硬體 Dump**：從硬體讀出的實際 LED 亮度資料（`.txt` dump 檔）
 - **模擬結果**：以輸入影像經 Max-Pooling 運算所推算出的預期 LED 狀態
 
-工具會在 Block 層級與 Zone 層級分別進行比對，標記所有異常（漏亮 / 錯亮）並輸出彙總統計。
+工具會在 Block 層級與 Zone 層級分別進行比對，標記所有異常（漏亮 / 多亮）並輸出彙總統計。
 
 ---
 
@@ -69,10 +69,10 @@ case 0:
 |------|------|
 | Max-Pooling | 1280×640 影像 → 40×80 Grid（每格 16×16 像素取最大值）|
 | Block 比對 | 逐格比較 Dump 與模擬結果，統計差異數量 |
-| Zone 比對 | 依 Zone 座標計算最大亮度；與 LED 資料比對，判定漏亮 / 錯亮 |
+| Zone 比對 | 依 Zone 座標計算最大亮度；與 LED 資料比對，判定漏亮 / 多亮 |
 
 **漏亮（Missing Light）**：模擬應亮，硬體未亮  
-**錯亮（Incorrect Light）**：模擬應滅，硬體誤亮
+**多亮（Extra Light）**：模擬應滅，硬體多亮
 
 ---
 
@@ -93,7 +93,7 @@ python local_dimming_align.py
 總 Zone 錯誤: 115
 
 --- Zone 錯誤分佈 ---
-Zone ID  | 漏亮  | 錯亮  | 合計
+Zone ID  | 漏亮  | 多亮  | 合計
 ---------|-------|-------|------
 Zone 0   |   0   |  28   |   28
 Zone 1   |   0   |  28   |   28
@@ -138,7 +138,7 @@ pip install opencv-python numpy
 - 修正燈區比對邏輯：`evaluate_zones` 改以 `ucDet_APL_Rot`（dump）為硬體實際依據，不再使用 LED log（`ucDet_APL`）
 - 修正 compare 圖顏色定義：紅色 = 漏亮（模擬有、dump 沒），藍色 = 多亮（模擬沒、dump 有）
 - LED 資料副檔名由 `.txt` 改為 `.log`
-- 術語「錯亮」統一更名為「多亮」
+- 術語「多亮」統一更名為「多亮」
 
 ---
 
@@ -160,15 +160,15 @@ pip install opencv-python numpy
 **彙整報告改為以測試組（Test Group）為單位統計**
 
 - **之前**：`print_aggregate_summary()` 依 Zone ID 累積所有測試組的錯誤次數。
-  例：Zone 0 的 `錯亮` 欄位會將 30 組中所有把 Zone 0 標為錯亮的次數加總（最高可達 28），
+  例：Zone 0 的 `多亮` 欄位會將 30 組中所有把 Zone 0 標為多亮的次數加總（最高可達 28），
   導致報告數字與單組 Zone 報告不一致，難以對應。
-- **之後**：彙整表改為依 **Test Group** 編號顯示，每列代表該測試組內的總漏亮 / 錯亮數量，
+- **之後**：彙整表改為依 **Test Group** 編號顯示，每列代表該測試組內的總漏亮 / 多亮數量，
   與各組 `--- 燈區 (Zone) 點亮比對報告 ---` 的輸出直接對應。
 
 **輸出範例（新）**：
 ```
 各測試組燈區錯誤次數：
-   zone    漏亮    錯亮   Total
+   zone    漏亮    多亮   Total
   ----------------------------------
        0       0       1       1
        1       0       0       0
@@ -182,7 +182,7 @@ pip install opencv-python numpy
 初始版本，功能包含：
 - 1280×640 灰階影像 → 40×80 Max-Pooling Grid
 - Block 層級差異比對與視覺化 (`compare/diff_N.png`)
-- Zone 層級漏亮 / 錯亮比對（依 `zone.txt` 定義）
+- Zone 層級漏亮 / 多亮比對（依 `zone.txt` 定義）
 - 批次處理 30 組測試資料，輸出彙總統計與 Top-5 Block 誤差排名
 - 自動安裝依賴套件（`opencv-python`、`numpy`）
 - 執行日誌帶時間戳，保存於 `logs/`
