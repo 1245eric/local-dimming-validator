@@ -123,7 +123,7 @@ flowchart TD
     H -- 否 --> WARN2[WARNING 跳過此組] --> NEXT
     H -- 是 --> I[cv2.imread 讀取灰階影像]
 
-    I --> J{影像尺寸\n== 640×1280?}
+    I --> J{影像尺寸\n== 1280×640?}
     J -- 否 --> ERR1[ERROR 跳過此組] --> NEXT
     J -- 是 --> K[process_local_dimming\nMax-Pooling → sim_data 40×80]
 
