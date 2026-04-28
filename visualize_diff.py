@@ -12,67 +12,62 @@ except ImportError:
 import re
 import os
 
+GRID_H, GRID_W = 40, 80
+BLOCK_H, BLOCK_W = 16, 16
+
+
 def parse_dump(file_path):
-    dump_data = np.zeros(3200, dtype=np.int32)
-    # The file format is e.g.: [80]    125    0x2000'0060    UCHAR
+    total = GRID_H * GRID_W
+    dump_data = np.zeros(total, dtype=np.int32)
     with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
         for line in f:
+            # 新格式：[idx]  value（Tab 或空白分隔）
             match = re.search(r'\[(\d+)\]\s+(\d+)', line)
+            # 舊格式：[idx]value0x...（無分隔符）
+            if not match:
+                match = re.search(r'\[(\d+)\](\d+)0x', line)
             if match:
                 idx = int(match.group(1))
                 val = int(match.group(2))
-                if 0 <= idx < 3200:
+                if 0 <= idx < total:
                     dump_data[idx] = val
-    # Returns a 40x80 numpy array
-    return dump_data.reshape((40, 80))
+    return dump_data.reshape((GRID_H, GRID_W))
+
 
 def get_output_sim(file_path):
     img = cv2.imread(file_path, cv2.IMREAD_GRAYSCALE)
     if img is None:
         print("Warning: Could not read output sim file, returning zeros.")
-        return np.zeros((40, 80), dtype=np.int32)
-    # Downsample by taking top-left pixel of each 16x16 block
-    sim_data = img[::16, ::16].astype(np.int32)
-    return sim_data
+        return np.zeros((GRID_H, GRID_W), dtype=np.int32)
+    # Max-Pooling：每 16×16 區塊取最大值（與主程式 process_local_dimming 一致）
+    tiles = img[:GRID_H * BLOCK_H, :GRID_W * BLOCK_W].reshape(GRID_H, BLOCK_H, GRID_W, BLOCK_W)
+    return tiles.max(axis=(1, 3)).astype(np.int32)
+
 
 def visualize_diff(dump_path, output_path, result_path):
     dump_arr = parse_dump(dump_path)
     sim_arr = get_output_sim(output_path)
-    
-    vis_img = np.zeros((40, 80, 3), dtype=np.uint8)
-    
-    # Comparison Logic:
-    # 判斷重疊: 只要雙方都大於 0 就是重疊 (White)
-    # 只有 Dump 有 (>0), Output 沒有 (==0) -> Red
-    # 只有 Output 有 (>0), Dump 沒有 (==0) -> Blue
-    # 雙方皆黑 (== 0) -> Black
-    
-    diff_count = 0
-    for y in range(40):
-        for x in range(80):
-            d_val = dump_arr[y, x]
-            s_val = sim_arr[y, x]
-            
-            if d_val > 0 and s_val > 0:
-                vis_img[y, x] = (255, 255, 255) # White: 重疊
-            elif d_val > 0 and s_val == 0:
-                vis_img[y, x] = (0, 0, 255) # Red: Dump 有, Output 沒有
-                diff_count += 1
-            elif d_val == 0 and s_val > 0:
-                vis_img[y, x] = (255, 0, 0) # Blue: Output 有, Dump 沒有
-                diff_count += 1
-            else:
-                vis_img[y, x] = (0, 0, 0) # Black: 皆沒
-                
-    # Resize to 1280x640 using nearest neighbor to keep hard pixel edges
+
+    vis_img = np.zeros((GRID_H, GRID_W, 3), dtype=np.uint8)
+
+    # 以模擬為準與 Dump 比對（與主程式 visualize_diff 邏輯一致）
+    both_on = (dump_arr > 0) & (sim_arr > 0)
+    missing  = (dump_arr == 0) & (sim_arr > 0)   # 漏亮：模擬有、Dump 沒
+    extra    = (dump_arr > 0) & (sim_arr == 0)   # 多亮：模擬沒、Dump 有
+
+    vis_img[both_on] = (255, 255, 255)   # 白：兩者皆亮
+    vis_img[missing] = (0, 0, 255)       # 紅：漏亮
+    vis_img[extra]   = (255, 0, 0)       # 藍：多亮
+
+    diff_count = int(np.sum(missing) + np.sum(extra))
+
     vis_img_large = cv2.resize(vis_img, (1280, 640), interpolation=cv2.INTER_NEAREST)
-    
-    # Add a legend
+
     cv2.putText(vis_img_large, "Legend:", (20, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
-    cv2.putText(vis_img_large, "Red: Only Dump > 0 (Dump extra)", (20, 70), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
-    cv2.putText(vis_img_large, "Blue: Only Output > 0 (Missing in Dump)", (20, 110), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
-    cv2.putText(vis_img_large, "White: Both > 0 (Overlap)", (20, 150), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
-    
+    cv2.putText(vis_img_large, "Red  : 漏亮 (sim ON, dump OFF)", (20, 70), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
+    cv2.putText(vis_img_large, "Blue : 多亮 (sim OFF, dump ON)", (20, 110), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
+    cv2.putText(vis_img_large, "White: 正常點亮 (both ON)", (20, 150), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+
     cv2.imwrite(result_path, vis_img_large)
     return diff_count
 

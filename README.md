@@ -106,6 +106,48 @@ Case 5   : 87 block diffs
 
 ---
 
+## 程式流程圖
+
+```mermaid
+flowchart TD
+    A([開始]) --> B[解析命令列參數\ndata_dir / --count]
+    B --> C[setup_logging\n建立 logs/ 日誌檔]
+    C --> D{有傳入 -c 組數?}
+    D -- 否 --> E[互動式輸入組數]
+    D -- 是 --> F
+    E --> F[迴圈 x = 0 … N-1]
+
+    F --> G{dump/x.txt 存在?}
+    G -- 否 --> WARN1[WARNING 跳過此組] --> NEXT
+    G -- 是 --> H{input/input_x.png 存在?}
+    H -- 否 --> WARN2[WARNING 跳過此組] --> NEXT
+    H -- 是 --> I[cv2.imread 讀取灰階影像]
+
+    I --> J{影像尺寸\n== 640×1280?}
+    J -- 否 --> ERR1[ERROR 跳過此組] --> NEXT
+    J -- 是 --> K[process_local_dimming\nMax-Pooling → sim_data 40×80]
+
+    K --> L[產生 sim_output/sim_x.png]
+    L --> M[parse_dump\n解析 dump/x.txt → dump_data 40×80]
+
+    M --> N{parse 成功?}
+    N -- 否 --> ERR2[ERROR 跳過此組] --> NEXT
+    N -- 是 --> O[visualize_diff\n產生 compare/diff_x.png\n回傳 block_diffs]
+
+    O --> P[parse_zones\n解析 zone.txt → zones 字典]
+    P --> Q{zones 解析成功?}
+    Q -- 否 --> WARN3[WARNING 跳過燈區比對\nzone_errors = 0] --> COLLECT
+    Q -- 是 --> R[evaluate_zones\n逐 Zone 比對 sim vs dump\n判定漏亮 / 多亮]
+    R --> COLLECT[收集結果\nsuccess / block_diffs\nzone_errors / per_zone_results]
+
+    COLLECT --> NEXT{還有下一組?}
+    NEXT -- 是 --> F
+    NEXT -- 否 --> S[print_aggregate_summary\n成功組數 / Block 誤差總計\nZone 異常清單 / Top-5]
+    S --> Z([結束])
+```
+
+---
+
 ## 環境需求
 
 ```
@@ -130,6 +172,15 @@ pip install opencv-python numpy
 ---
 
 ## 版本紀錄 (Changelog)
+
+### v1.6.0 — 2026-04-28
+
+**同步獨立腳本與新增 README 流程圖**
+
+- `visualize_diff.py` 同步主程式邏輯：顏色定義（紅=漏亮、藍=多亮）、Max-Pooling 取樣、向量化運算、舊格式 Dump 支援、消除魔法數字
+- README 新增 Mermaid 程式流程圖
+
+---
 
 ### v1.5.0 — 2026-04-27
 
