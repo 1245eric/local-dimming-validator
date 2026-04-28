@@ -163,6 +163,47 @@ pip install opencv-python numpy
 
 ---
 
+## 打包為執行檔（Windows）
+
+使用 PyInstaller 將主程式打包為獨立 `.exe`，無需安裝 Python 即可執行。
+
+### 建置步驟
+
+```bash
+pip install pyinstaller
+build.bat
+```
+
+建置完成後輸出位於 `dist/local_dimming_validator/`：
+
+```
+dist/local_dimming_validator/
+├── local_dimming_validator.exe   # 主執行檔
+└── _internal/                    # 依賴函式庫（不可刪除）
+```
+
+### 部署方式
+
+將整個 `dist/local_dimming_validator/` 資料夾複製至目標機器，並在**同一層**放置：
+
+```
+local_dimming_validator/
+├── local_dimming_validator.exe
+├── _internal/
+├── zone.txt            ← 必要（燈區座標定義）
+├── input/              ← 放置輸入影像
+├── dump/               ← 放置硬體 Dump 檔
+└── LED/                ← 放置 LED log 檔
+```
+
+執行：
+
+```cmd
+local_dimming_validator.exe [data_dir] [-c COUNT]
+```
+
+---
+
 ## 注意事項
 
 - 輸入影像不會被覆寫；模擬結果另存至 `sim_output/`
@@ -172,6 +213,17 @@ pip install opencv-python numpy
 ---
 
 ## 版本紀錄 (Changelog)
+
+### v1.7.0 — 2026-04-28
+
+**新增 Windows 執行檔打包支援**
+
+- 新增 `local_dimming_align.spec`（PyInstaller 設定檔）
+- 新增 `build.bat`（一鍵建置腳本）
+- `.gitignore` 新增排除 `build/`、`dist/` 建置產物
+- README 新增打包步驟與部署說明
+
+---
 
 ### v1.6.0 — 2026-04-28
 
