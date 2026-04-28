@@ -8,6 +8,7 @@ __pycache__/
 build/
 dist/
 *.spec.bak
+local_dimming_validator.exe
 
 # Logs
 logs/

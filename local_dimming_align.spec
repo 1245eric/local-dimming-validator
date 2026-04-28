@@ -18,21 +18,14 @@ pyz = PYZ(a.pure)
 exe = EXE(
     pyz,
     a.scripts,
+    a.binaries,
+    a.datas,
     [],
-    exclude_binaries=True,
     name='local_dimming_validator',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
     upx=False,
     console=True,
-)
-
-coll = COLLECT(
-    exe,
-    a.binaries,
-    a.datas,
-    strip=False,
-    upx=False,
-    name='local_dimming_validator',
+    onefile=True,
 )

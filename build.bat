@@ -3,7 +3,7 @@ echo ============================================
 echo  Local Dimming Validator - Build Executable
 echo ============================================
 
-pyinstaller local_dimming_align.spec --noconfirm
+pyinstaller local_dimming_align.spec --noconfirm --distpath .
 
 if %ERRORLEVEL% neq 0 (
     echo [ERROR] Build failed.
@@ -13,8 +13,5 @@ if %ERRORLEVEL% neq 0 (
 
 echo.
 echo [OK] Build complete.
-echo Output folder: dist\local_dimming_validator\
-echo.
-echo Copy the following files alongside the .exe before running:
-echo   zone.txt
+echo Output: local_dimming_validator.exe (same folder as this script)
 pause

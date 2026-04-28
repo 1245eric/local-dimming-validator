@@ -174,29 +174,27 @@ pip install pyinstaller
 build.bat
 ```
 
-建置完成後輸出位於 `dist/local_dimming_validator/`：
+建置完成後 `local_dimming_validator.exe` 直接輸出至專案根目錄（與 `zone.txt` 同層）：
 
 ```
-dist/local_dimming_validator/
-├── local_dimming_validator.exe   # 主執行檔
-└── _internal/                    # 依賴函式庫（不可刪除）
+local dimming/
+├── local_dimming_validator.exe   # 單一執行檔，約 55 MB
+├── zone.txt
+├── input/
+├── dump/
+├── LED/
+├── compare/      (自動建立)
+├── sim_output/   (自動建立)
+└── logs/         (自動建立)
 ```
 
 ### 部署方式
 
-將整個 `dist/local_dimming_validator/` 資料夾複製至目標機器，並在**同一層**放置：
+將以下檔案複製至目標機器同一資料夾，直接執行 `.exe` 即可，無需安裝 Python：
 
-```
-local_dimming_validator/
-├── local_dimming_validator.exe
-├── _internal/
-├── zone.txt            ← 必要（燈區座標定義）
-├── input/              ← 放置輸入影像
-├── dump/               ← 放置硬體 Dump 檔
-└── LED/                ← 放置 LED log 檔
-```
-
-執行：
+- `local_dimming_validator.exe`
+- `zone.txt`
+- `input/`、`dump/`、`LED/`
 
 ```cmd
 local_dimming_validator.exe [data_dir] [-c COUNT]
