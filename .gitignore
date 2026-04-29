@@ -3,6 +3,7 @@ __pycache__/
 *.py[cod]
 *.pyo
 .env
+make_ppt.py
 
 # PyInstaller build artifacts
 build/
