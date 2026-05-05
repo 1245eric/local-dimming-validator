@@ -212,6 +212,15 @@ local_dimming_validator.exe [data_dir] [-c COUNT]
 
 ## 版本紀錄 (Changelog)
 
+### v1.8.0 — 2026-05-05
+
+**新增漏亮測試通過/失敗判定輸出**
+
+- 彙整報告結尾新增整體測試判定：無任何漏亮異常輸出 `✅ 測試通過`，有漏亮則輸出 `❌ 測試失敗（共 N 個漏亮異常）`
+- PPT 簡報新增關鍵程式碼投影片（`process_local_dimming`、`visualize_diff`、`parse_dump`、`evaluate_zones`）與實際輸出截圖對比投影片
+
+---
+
 ### v1.7.0 — 2026-04-28
 
 **新增 Windows 執行檔打包支援**

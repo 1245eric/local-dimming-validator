@@ -303,8 +303,8 @@ def print_aggregate_summary(results, logger):
     total_zone_errors = sum(r["zone_errors"] for r in results)
 
     logger.info(f"處理組數  : {success_count} / {total} 成功")
-    logger.info(f"Block誤差總計: {total_block_diffs} 個區塊")
-    logger.info(f"Zone 錯誤總計: {total_zone_errors} 個燈區異常")
+    #logger.info(f"Block誤差總計: {total_block_diffs} 個區塊")
+    #logger.info(f"Zone 錯誤總計: {total_zone_errors} 個燈區異常")
 
     # 各測試組彙整：統計每組內的漏亮 / 多亮次數
     # 以測試組編號為索引，對應該組 Zone 報告中所有錯誤的加總
@@ -323,6 +323,7 @@ def print_aggregate_summary(results, logger):
         for gid in sorted(problematic):
             c = problematic[gid]
             logger.info(f"  {gid:>6}  {c['漏亮']:>6}  {c['多亮']:>6}  {c['total']:>6}")
+        
     else:
         logger.info("\n全部測試組均無燈區錯誤！")
 
@@ -332,6 +333,12 @@ def print_aggregate_summary(results, logger):
     for r in worst_block:
         if r["success"]:
             logger.info(f"  Case {r['case_x']:3d}: {r['block_diffs']} 誤差區塊, {r['zone_errors']} Zone 異常")
+
+    total_lou = sum(c["漏亮"] for c in group_error_counts.values())
+    if total_lou == 0:
+        logger.info("✅ 測試通過")
+    else:
+        logger.info(f"❌ 測試失敗（共 {total_lou} 個漏亮異常）")
 
     logger.info("======================================================\n")
 
